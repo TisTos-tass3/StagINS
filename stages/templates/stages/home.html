@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gestion des stages</title>
+</head>
+<body>
+    <h1>Liste des stages</h1>
+    <a href="{% url 'add_stagiaire' %}">Ajouter un stagiaire</a> |
+    <a href="{% url 'add_stage' %}">Ajouter un stage</a>
+    <ul>
+        {% for stage in stages %}
+            <li>{{ stage.theme }} - {{ stage.stagiaire.prenom }} {{ stage.stagiaire.nom }} ({{ stage.encadrant.prenom }} {{ stage.encadrant.nom }})</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
