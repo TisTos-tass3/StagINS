@@ -1,16 +1,27 @@
 from django import forms
-from .models import Stagiaire, Stage,Encadrant,Rapport
+from .models import Stagiaire, Stage, Encadrant, Rapport
 
 class StagiaireForm(forms.ModelForm):
+    NIVEAU_ETUDE_CHOICES = [
+        ('Bac +2', 'Bac +2'),
+        ('Bac +3', 'Bac +3'),
+        ('Bac +5', 'Bac +5'),
+        ('Bac +8', 'Bac +8'),
+    ]
+    niveau_etude = forms.ChoiceField(
+        choices=NIVEAU_ETUDE_CHOICES,
+        required=False,
+        label="Niveau d'étude"
+    )
+
     class Meta:
         model = Stagiaire
-        fields = ['nom', 'prenom', 'ecole', 'filiere', 'email', 'telephone']
+        fields = ['nom', 'prenom', 'ecole', 'specialite', 'niveau_etude', 'email', 'telephone']
 
 class StageForm(forms.ModelForm):
     class Meta:
         model = Stage
-        fields = ['theme', 'type_stage', 'date_debut', 'date_fin', 'statut', 'stagiaire', 'encadrant']
-
+        fields = ['theme', 'type_stage', 'date_debut', 'date_fin', 'stagiaire', 'encadrant']
 
 class EncadrantForm(forms.ModelForm):
     class Meta:

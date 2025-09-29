@@ -3,8 +3,8 @@ from .models import Stagiaire, Encadrant, Stage, Rapport
 
 @admin.register(Stagiaire)
 class StagiaireAdmin(admin.ModelAdmin):
-    list_display = ('prenom', 'nom', 'ecole', 'filiere', 'email', 'telephone')
-    search_fields = ('prenom', 'nom', 'email', 'ecole', 'filiere')
+    list_display = ('prenom', 'nom', 'ecole', 'specialite', 'email', 'telephone', 'matricule')
+    search_fields = ('prenom', 'nom', 'email', 'ecole', 'specialite', 'matricule')
 
 
 @admin.register(Encadrant)
@@ -23,6 +23,6 @@ class StageAdmin(admin.ModelAdmin):
 
 @admin.register(Rapport)
 class RapportAdmin(admin.ModelAdmin):
-    list_display = ('stage','etat', 'date_depot')
+    list_display = ('stage', 'etat', 'date_depot', 'derniere_modif')
     list_filter = ('etat', 'date_depot')
     search_fields = ('stage__theme', 'stage__stagiaire__prenom', 'stage__stagiaire__nom')

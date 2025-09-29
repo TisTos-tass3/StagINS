@@ -9,12 +9,25 @@ class Stagiaire(models.Model):
     nom = models.CharField(max_length=100)
     prenom = models.CharField(max_length=100)
     ecole = models.CharField(max_length=150, blank=True, null=True)
-    filiere = models.CharField(max_length=150, blank=True, null=True)
+    specialite = models.CharField(max_length=150, blank=True, null=True)  # anciennement 'filiere'
+    niveau_etude = models.CharField(max_length=50, blank=True, null=True)
     email = models.EmailField(unique=True)
     telephone = models.CharField(max_length=20, blank=True, null=True)
+    matricule = models.CharField(max_length=50, unique=True, blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.matricule:  # Générer uniquement si le matricule n'existe pas déjà
+            # On sauvegarde d'abord pour que l'ID soit disponible
+            super().save(*args, **kwargs)
+            today = date.today().strftime("%Y%m%d")
+            self.matricule = f"STG-{today}-{self.id}"
+            # Sauvegarde une 2ème fois avec le matricule
+            kwargs['force_insert'] = False
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.prenom} {self.nom}"
+        return f"{self.prenom} {self.nom} ({self.matricule})"
+
 
 
 class Encadrant(models.Model):

@@ -14,15 +14,12 @@ urlpatterns = [
     path('encadrants/api/create/', views.add_encadrant, name='create_encadrant'),
     path('encadrants/api/<int:pk>/', views.encadrant_detail, name='encadrant_detail'),
 
- # Routes pour stages
-
+    # Routes pour stages
     path('stages/api/', views.stages_api, name='stages_api'),
     path('stages/api/create/', views.stage_create, name='stage_create'),
     path('stages/api/<int:pk>/', views.stage_detail, name='stage_detail'),
 
- # Routes pour les rapports
-   
-# Routes pour les rapports
+    # Routes pour les rapports
     path('rapports/api/', views.rapports_api, name='rapports_api'),
     path('rapports/api/create/', views.rapport_create, name='rapport_create'),
     path('rapports/api/<int:pk>/', views.rapport_detail, name='rapport_detail'), 
@@ -30,4 +27,8 @@ urlpatterns = [
     path('rapports/api/<int:pk>/archiver/', views.rapport_archiver, name='rapport_archiver'),
     path('rapports/api/<int:pk>/download/', views.rapport_download, name='rapport_download'),
 
+    # Route pour le tableau de bord
+    path('dashboard/api/', views.dashboard_api, name='dashboard_api'),
+     path('stagiaires/api/search-by-matricule/', views.search_stagiaire_by_matricule, name='search_stagiaire_by_matricule'),
+    path('stagiaires/api/<int:pk>/detail/', views.stagiaire_detail_api, name='stagiaire_detail_api'),
 ]
