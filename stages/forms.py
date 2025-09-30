@@ -21,7 +21,7 @@ class StagiaireForm(forms.ModelForm):
 class StageForm(forms.ModelForm):
     class Meta:
         model = Stage
-        fields = ['theme', 'type_stage', 'date_debut', 'date_fin', 'stagiaire', 'encadrant']
+        fields = ['theme', 'type_stage', 'date_debut', 'date_fin', 'stagiaire', 'encadrant','lieu_affectation']
 
 class EncadrantForm(forms.ModelForm):
     class Meta:

@@ -17,8 +17,11 @@ from django.db.models import Count # Import nécessaire pour l'agrégation
 from django.db.models.functions import ExtractMonth # Import nécessaire pour l'extraction du mois
 from collections import defaultdict # Pour gérer les mois sans stage
 
+# NOUVEL IMPORT
+from .business_rules import BusinessRules
+
 # =======================================================================
-# Fonctions de sérialisation (AJOUTÉES/CORRIGÉES)
+# Fonctions de sérialisation (inchangées)
 # =======================================================================
 
 def stagiaire_to_dict(stagiaire):
@@ -57,6 +60,7 @@ def stage_to_dict_light(stage):
         'date_debut': stage.date_debut.isoformat(),
         'date_fin': stage.date_fin.isoformat(),
         'statut': stage.statut,
+        'lieu_affectation': stage.lieu_affectation,
         'stagiaire_id': stage.stagiaire_id,
         'encadrant_id': stage.encadrant_id,
         # Inclusion des objets stagiaire et encadrant
@@ -111,7 +115,7 @@ def add_stage(request):
     return render(request, 'stages/add_stage.html', {'form': form})
 
 # =======================================================================
-# Vues API Stagiaires (Mise à jour pour utiliser stagiaire_to_dict)
+# Vues API Stagiaires (AVEC RÈGLES MÉTIER)
 # =======================================================================
 
 @require_http_methods(["GET"])
@@ -124,11 +128,19 @@ def stagiaires_api(request):
 @require_http_methods(["POST"])
 def stagiaire_create(request):
     data = json.loads(request.body)
-    form = StagiaireForm(data)
-    if form.is_valid():
-        stagiaire = form.save()
-        return JsonResponse(stagiaire_to_dict(stagiaire), status=201)
-    return JsonResponse(form.errors, status=400)
+    
+    try:
+        # VALIDATION RÈGLES MÉTIER
+        BusinessRules.valider_creation_stagiaire(data)
+        
+        form = StagiaireForm(data)
+        if form.is_valid():
+            stagiaire = form.save()
+            return JsonResponse(stagiaire_to_dict(stagiaire), status=201)
+        return JsonResponse(form.errors, status=400)
+        
+    except ValidationError as e:
+        return JsonResponse({'error': 'Erreur de règles métier', 'details': e.message_dict}, status=400)
 
 @csrf_exempt
 @require_http_methods(["GET", "PUT", "DELETE"])
@@ -137,19 +149,34 @@ def stagiaire_detail(request, pk):
 
     if request.method == 'GET':
         return JsonResponse(stagiaire_to_dict(stagiaire))
+    
     elif request.method == 'PUT':
         data = json.loads(request.body)
-        form = StagiaireForm(data, instance=stagiaire)
-        if form.is_valid():
-            stagiaire = form.save()
-            return JsonResponse(stagiaire_to_dict(stagiaire))
-        return JsonResponse(form.errors, status=400)
+        
+        try:
+            # VALIDATION RÈGLES MÉTIER
+            BusinessRules.valider_modification_stagiaire(stagiaire, data)
+            
+            form = StagiaireForm(data, instance=stagiaire)
+            if form.is_valid():
+                stagiaire = form.save()
+                return JsonResponse(stagiaire_to_dict(stagiaire))
+            return JsonResponse(form.errors, status=400)
+            
+        except ValidationError as e:
+            return JsonResponse({'error': 'Erreur de règles métier', 'details': e.message_dict}, status=400)
+    
     elif request.method == 'DELETE':
+        # VÉRIFICATION RÈGLES MÉTIER
+        peut_supprimer, message_erreur = BusinessRules.peut_supprimer_stagiaire(stagiaire)
+        if not peut_supprimer:
+            return JsonResponse({'error': message_erreur}, status=400)
+        
         stagiaire.delete()
         return JsonResponse({'deleted': True})
     
 # =======================================================================
-# Vues API Encadrants (Ajout de la fonction pour la sérialisation)
+# Vues API Encadrants (inchangées)
 # =======================================================================
     
 @require_http_methods(["GET"])
@@ -159,7 +186,7 @@ def encadrants_api(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def add_encadrant(request): # Le nom 'add_encadrant' est conservé de l'original, mais sert d'API create
+def add_encadrant(request):
     data = json.loads(request.body)
     form = EncadrantForm(data)
     if form.is_valid():
@@ -186,7 +213,7 @@ def encadrant_detail(request, pk):
         return JsonResponse({'deleted': True})
 
 # =======================================================================
-# Vues API Stages (CORRECTION CRITIQUE)
+# Vues API Stages (AVEC RÈGLES MÉTIER)
 # =======================================================================
 
 @require_http_methods(["GET"])
@@ -202,38 +229,49 @@ def stage_create(request):
     stagiaire_id = data.get('stagiaire')
     encadrant_id = data.get('encadrant')
 
-    # Si stage créé à partir du formulaire multi-étapes (nouvel stagiaire + stage)
-    if not stagiaire_id:
-        stagiaire_data = {
-            'nom': data.get('nom'), 'prenom': data.get('prenom'), 'ecole': data.get('ecole'),
-            'specialite': data.get('specialite'), 'niveau_etude': data.get('niveau_etude'),
-            'email': data.get('email'), 'telephone': data.get('telephone'),
+    try:
+        # VALIDATION RÈGLES MÉTIER POUR LE STAGE
+        BusinessRules.valider_creation_stage(data)
+
+        # Si stage créé à partir du formulaire multi-étapes (nouvel stagiaire + stage)
+        if not stagiaire_id:
+            stagiaire_data = {
+                'nom': data.get('nom'), 'prenom': data.get('prenom'), 'ecole': data.get('ecole'),
+                'specialite': data.get('specialite'), 'niveau_etude': data.get('niveau_etude'),
+                'email': data.get('email'), 'telephone': data.get('telephone'),
+            }
+            
+            # VALIDATION RÈGLES MÉTIER POUR LE STAGIAIRE
+            BusinessRules.valider_creation_stagiaire(stagiaire_data)
+            
+            stagiaire_form = StagiaireForm(stagiaire_data)
+            if stagiaire_form.is_valid():
+                stagiaire = stagiaire_form.save()
+                stagiaire_id = stagiaire.id
+            else:
+                return JsonResponse({'error': 'Erreur de création du stagiaire', 'details': stagiaire_form.errors}, status=400)
+
+        stage_data = {
+            'theme': data.get('theme'), 'type_stage': data.get('type_stage'), 
+            'date_debut': data.get('date_debut'), 'date_fin': data.get('date_fin'), 
+            'stagiaire': stagiaire_id, 'encadrant': encadrant_id,
         }
-        stagiaire_form = StagiaireForm(stagiaire_data)
-        if stagiaire_form.is_valid():
-            stagiaire = stagiaire_form.save()
-            stagiaire_id = stagiaire.id
+
+        stage_form = StageForm(stage_data)
+        if stage_form.is_valid():
+            try:
+                stage = stage_form.save(commit=False)
+                stage.stagiaire = Stagiaire.objects.get(pk=stagiaire_id)
+                stage.encadrant = Encadrant.objects.get(pk=encadrant_id) if encadrant_id else None
+                stage.save() # Le save() du modèle met à jour le statut
+                return JsonResponse(stage_to_dict(stage), status=201)
+            except Exception as e:
+                return JsonResponse({'error': f"Erreur lors de la sauvegarde: {e}"}, status=500)
         else:
-            return JsonResponse({'error': 'Erreur de création du stagiaire', 'details': stagiaire_form.errors}, status=400)
-
-    stage_data = {
-        'theme': data.get('theme'), 'type_stage': data.get('type_stage'), 
-        'date_debut': data.get('date_debut'), 'date_fin': data.get('date_fin'), 
-        'stagiaire': stagiaire_id, 'encadrant': encadrant_id,
-    }
-
-    stage_form = StageForm(stage_data)
-    if stage_form.is_valid():
-        try:
-            stage = stage_form.save(commit=False)
-            stage.stagiaire = Stagiaire.objects.get(pk=stagiaire_id)
-            stage.encadrant = Encadrant.objects.get(pk=encadrant_id) if encadrant_id else None
-            stage.save() # Le save() du modèle met à jour le statut
-            return JsonResponse(stage_to_dict(stage), status=201)
-        except Exception as e:
-            return JsonResponse({'error': f"Erreur lors de la sauvegarde: {e}"}, status=500)
-    else:
-        return JsonResponse({'error': 'Erreur de création du stage', 'details': stage_form.errors}, status=400)
+            return JsonResponse({'error': 'Erreur de création du stage', 'details': stage_form.errors}, status=400)
+            
+    except ValidationError as e:
+        return JsonResponse({'error': 'Erreur de règles métier', 'details': e.message_dict}, status=400)
 
 
 @csrf_exempt
@@ -244,22 +282,41 @@ def stage_detail(request, pk):
 
     if request.method == 'GET':
         return JsonResponse(stage_to_dict(stage))
+    
     elif request.method == 'PUT':
         data = json.loads(request.body)
-        form = StageForm(data, instance=stage)
-        if form.is_valid():
-            stage = form.save()
-            # Re-fetch l'objet avec les relations pour la réponse (car form.save ne fait pas select_related)
-            stage = Stage.objects.select_related('stagiaire', 'encadrant').get(pk=stage.pk)
-            return JsonResponse(stage_to_dict(stage))
-        return JsonResponse(form.errors, status=400)
+        
+        try:
+            # VÉRIFICATION RÈGLES MÉTIER
+            if not BusinessRules.peut_modifier_stage(stage):
+                return JsonResponse({'error': 'Impossible de modifier un stage avec un rapport validé ou archivé.'}, status=400)
+            
+            # VALIDATION RÈGLES MÉTIER
+            BusinessRules.valider_modification_stage(stage, data)
+            
+            form = StageForm(data, instance=stage)
+            if form.is_valid():
+                stage = form.save()
+                # Re-fetch l'objet avec les relations pour la réponse (car form.save ne fait pas select_related)
+                stage = Stage.objects.select_related('stagiaire', 'encadrant').get(pk=stage.pk)
+                return JsonResponse(stage_to_dict(stage))
+            return JsonResponse(form.errors, status=400)
+            
+        except ValidationError as e:
+            return JsonResponse({'error': 'Erreur de règles métier', 'details': e.message_dict}, status=400)
+    
     elif request.method == 'DELETE':
+        # VÉRIFICATION RÈGLES MÉTIER
+        peut_supprimer, message_erreur = BusinessRules.peut_supprimer_stage(stage)
+        if not peut_supprimer:
+            return JsonResponse({'error': message_erreur}, status=400)
+        
         stage.delete()
         return JsonResponse({'deleted': True})
 
 
 # =======================================================================
-# Vues API Rapports (Mise à jour pour utiliser rapport_to_dict et Q)
+# Vues API Rapports (AVEC RÈGLES MÉTIER)
 # =======================================================================
 
 @require_http_methods(["GET"])
@@ -297,18 +354,31 @@ def rapport_detail(request, pk):
 
     if request.method == 'GET':
         return JsonResponse(rapport_to_dict(rapport))
+    
     elif request.method == 'PUT':
-        # Gestion des fichiers dans le formulaire
-        form = RapportForm(request.POST, request.FILES, instance=rapport)
-        if form.is_valid():
-            rapport = form.save()
-            return JsonResponse(rapport_to_dict(rapport))
-        return JsonResponse(form.errors, status=400)
+        try:
+            # VALIDATION RÈGLES MÉTIER
+            BusinessRules.valider_modification_rapport(rapport, request.POST, request.FILES.get('fichier'))
+            
+            # Gestion des fichiers dans le formulaire
+            form = RapportForm(request.POST, request.FILES, instance=rapport)
+            if form.is_valid():
+                rapport = form.save()
+                return JsonResponse(rapport_to_dict(rapport))
+            return JsonResponse(form.errors, status=400)
+            
+        except ValidationError as e:
+            return JsonResponse({'error': 'Erreur de règles métier', 'details': e.message_dict}, status=400)
+    
     elif request.method == 'DELETE':
-        if rapport.etat != 'En attente':
-            return JsonResponse({"error": "Seul un rapport en attente peut être supprimé."}, status=400)
+        # VÉRIFICATION RÈGLES MÉTIER
+        peut_supprimer, message_erreur = BusinessRules.peut_supprimer_rapport(rapport)
+        if not peut_supprimer:
+            return JsonResponse({'error': message_erreur}, status=400)
+        
         rapport.delete()
         return JsonResponse({"deleted": True})
+    
     else:
         return JsonResponse({"error": "Méthode non autorisée"}, status=405)
 
@@ -316,20 +386,31 @@ def rapport_detail(request, pk):
 @csrf_exempt
 @require_http_methods(["POST"])
 def rapport_create(request):
-    form = RapportForm(request.POST, request.FILES)
-    if form.is_valid():
-        rapport = form.save()
-        # Re-fetch pour la sérialisation correcte (inclure stage/stagiaire/encadrant)
-        rapport = Rapport.objects.select_related('stage__stagiaire', 'stage__encadrant').get(pk=rapport.pk)
-        return JsonResponse(rapport_to_dict(rapport), status=201)
-    return JsonResponse(form.errors, status=400)
+    try:
+        # VALIDATION RÈGLES MÉTIER
+        BusinessRules.valider_creation_rapport(request.POST, request.FILES.get('fichier'))
+        
+        form = RapportForm(request.POST, request.FILES)
+        if form.is_valid():
+            rapport = form.save()
+            # Re-fetch pour la sérialisation correcte (inclure stage/stagiaire/encadrant)
+            rapport = Rapport.objects.select_related('stage__stagiaire', 'stage__encadrant').get(pk=rapport.pk)
+            return JsonResponse(rapport_to_dict(rapport), status=201)
+        return JsonResponse(form.errors, status=400)
+        
+    except ValidationError as e:
+        return JsonResponse({'error': 'Erreur de règles métier', 'details': e.message_dict}, status=400)
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def rapport_valider(request, pk):
     rapport = get_object_or_404(Rapport.objects.select_related('stage__stagiaire', 'stage__encadrant'), pk=pk)
-    if rapport.etat == 'Validé':
-        return JsonResponse({"error": "Déjà validé."}, status=400)
+    
+    # VALIDATION WORKFLOW
+    peut_valider, message_erreur = BusinessRules.valider_workflow_rapport(rapport, 'valider')
+    if not peut_valider:
+        return JsonResponse({'error': message_erreur}, status=400)
+    
     rapport.etat = 'Validé'
     rapport.save()
     stage = rapport.stage
@@ -342,8 +423,12 @@ def rapport_valider(request, pk):
 @require_http_methods(["POST"])
 def rapport_archiver(request, pk):
     rapport = get_object_or_404(Rapport.objects.select_related('stage__stagiaire', 'stage__encadrant'), pk=pk)
-    if rapport.etat != 'Validé':
-        return JsonResponse({"error": "Un rapport ne peut être archivé que s'il est Validé."}, status=400)
+    
+    # VALIDATION WORKFLOW
+    peut_archiver, message_erreur = BusinessRules.valider_workflow_rapport(rapport, 'archiver')
+    if not peut_archiver:
+        return JsonResponse({'error': message_erreur}, status=400)
+    
     rapport.etat = 'Archivé'
     rapport.save()
     return JsonResponse(rapport_to_dict(rapport))
@@ -355,6 +440,10 @@ def rapport_download(request, pk):
         # Pour une API, il est préférable de renvoyer l'URL du fichier pour que le frontend le télécharge directement
         return JsonResponse({"download_url": rapport.fichier.url})
     return JsonResponse({"error": "Fichier non trouvé"}, status=404)
+
+# =======================================================================
+# Dashboard et Alertes (AVEC RÈGLES MÉTIER)
+# =======================================================================
 
 def get_monthly_stage_count():
     """Compte le nombre de stages qui ont commencé chaque mois de l'année en cours."""
@@ -401,7 +490,6 @@ def get_dashboard_data():
     total_stages = Stage.objects.count()
     
     # 3. Suivi des Rapports
-    # ... (le reste du code de suivi des rapports)
     rapports_counts = Rapport.objects.values('etat').annotate(count=Count('etat'))
     rapports_dict = {item['etat']: item['count'] for item in rapports_counts}
     total_rapports = Rapport.objects.count()
@@ -413,16 +501,17 @@ def get_dashboard_data():
     seven_days_later = today + relativedelta(days=+7)
     stages_bientot_finis = Stage.objects.filter(statut='En cours', date_fin__range=[today, seven_days_later]).count()
     
-    # 5. Top Encadrants -> SUPPRIMÉ
-
-    # 6. Stages par statut pour le graphique circulaire (NOUVELLE DONNÉE)
+    # 5. Stages par statut pour le graphique circulaire
     stage_status_data = [
         {'name': statut, 'value': stages_dict.get(statut, 0)}
         for statut in ['En cours', 'Validé', 'Terminé'] # Liste des statuts pertinents
     ]
     
-    # 7. Stages par mois (NOUVELLE DONNÉE)
+    # 6. Stages par mois
     monthly_stages_data = get_monthly_stage_count()
+    
+    # 7. ALERTES MÉTIER (NOUVEAU)
+    alertes = BusinessRules.get_alertes_stages()
     
     return {
         'total_stagiaires': total_stagiaires,
@@ -437,10 +526,15 @@ def get_dashboard_data():
         'total_rapports': total_rapports,
         'stages_retard_non_valides': stages_a_verifier,
         'stages_bientot_finis': stages_bientot_finis,
-        # NOUVELLES DONNÉES POUR LES GRAPHIQUES
+        # DONNÉES POUR LES GRAPHIQUES
         'stages_by_status': stage_status_data, 
-        'monthly_stages': monthly_stages_data, 
-        # 'top_encadrants': top_encadrants_list # SUPPRIMÉ
+        'monthly_stages': monthly_stages_data,
+        
+        # NOUVELLES DONNÉES ALERTES
+        'alertes_bientot_termines': alertes['bientot_termines']['count'],
+        'alertes_retard_rapport': alertes['en_retard_rapport']['count'],
+        'liste_alertes_bientot_termines': [stage_to_dict_light(s) for s in alertes['bientot_termines']['stages']],
+        'liste_alertes_retard': [stage_to_dict_light(s) for s in alertes['en_retard_rapport']['stages']]
     }
 
 @require_http_methods(["GET"])
@@ -451,19 +545,16 @@ def dashboard_api(request):
 
 
 # =======================================================================
-# NOUVELLES VUES POUR LA RECHERCHE ET LE DÉTAIL DU DOSSIER STAGIAIRE
+# Vues pour la recherche et le détail du dossier stagiaire
 # =======================================================================
 
 def stagiaire_to_detail_dict(stagiaire):
     """
     Sérialise le stagiaire avec tous ses stages et rapports associés.
-    (Fonction déplacée au niveau global)
     """
-    # Utilisez la fonction existante stagiaire_to_dict pour les infos de base
     detail_dict = stagiaire_to_dict(stagiaire)
     
     # Récupérer tous les stages du stagiaire, triés du plus récent au plus ancien
-    # Utiliser select_related ici pour optimiser les requêtes sur les relations
     stages = Stage.objects.filter(stagiaire=stagiaire).select_related('encadrant').order_by('-date_debut')
     
     detail_dict['stages'] = []
@@ -473,7 +564,6 @@ def stagiaire_to_detail_dict(stagiaire):
         stage_rapport = Rapport.objects.filter(stage=stage).first() 
         
         # Structure de l'Encadrant
-        # Note: Assurez-vous que le modèle Encadrant a bien un champ 'interne'
         encadrant_type = 'Interne' if getattr(stage.encadrant, 'interne', False) else 'Externe'
         encadrant_nom = f"{stage.encadrant.nom} {stage.encadrant.prenom} ({encadrant_type})"
         
@@ -526,7 +616,7 @@ def search_stagiaire_by_matricule(request):
 
     try:
         # Recherche exacte du stagiaire par le champ 'matricule'
-        stagiaire = Stagiaire.objects.get(matricule__iexact=matricule) # utiliser iexact pour recherche insensible à la casse
+        stagiaire = Stagiaire.objects.get(matricule__iexact=matricule)
     except Stagiaire.DoesNotExist:
         return JsonResponse({"error": f"Stagiaire avec matricule {matricule} non trouvé. (Vérifiez les archives/l'orthographe)"}, status=404)
 
@@ -537,7 +627,3 @@ def search_stagiaire_by_matricule(request):
         'prenom': stagiaire.prenom,
         'matricule': stagiaire.matricule
     })
-
-# NOTE FINALE : N'oubliez pas d'ajouter les deux routes suivantes dans votre urls.py :
-# path('stagiaires/api/<int:pk>/detail/', views.stagiaire_detail_api, name='stagiaire_detail_api'),
-# path('stagiaires/api/search-by-matricule/', views.search_stagiaire_by_matricule, name='search_stagiaire_by_matricule'),
