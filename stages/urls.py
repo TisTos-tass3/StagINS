@@ -29,6 +29,6 @@ urlpatterns = [
 
     # Route pour le tableau de bord
     path('dashboard/api/', views.dashboard_api, name='dashboard_api'),
-     path('stagiaires/api/search-by-matricule/', views.search_stagiaire_by_matricule, name='search_stagiaire_by_matricule'),
+    path('stagiaires/api/search-by-matricule/', views.search_stagiaire_by_matricule, name='search_stagiaire_by_matricule'),
     path('stagiaires/api/<int:pk>/detail/', views.stagiaire_detail_api, name='stagiaire_detail_api'),
 ]

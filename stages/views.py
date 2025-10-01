@@ -254,7 +254,7 @@ def stage_create(request):
         stage_data = {
             'theme': data.get('theme'), 'type_stage': data.get('type_stage'), 
             'date_debut': data.get('date_debut'), 'date_fin': data.get('date_fin'), 
-            'stagiaire': stagiaire_id, 'encadrant': encadrant_id,
+            'stagiaire': stagiaire_id, 'encadrant': encadrant_id,'lieu_affectation': data.get('lieu_affectation', ''),
         }
 
         stage_form = StageForm(stage_data)
@@ -585,6 +585,7 @@ def stagiaire_to_detail_dict(stagiaire):
             'statut': stage.statut,
             'type_stage': stage.type_stage,
             'encadrant_nom': encadrant_nom,
+            'lieu_affectation': stage.lieu_affectation,
             'rapport': rapport_dict,
         })
 

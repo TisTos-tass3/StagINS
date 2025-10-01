@@ -2,7 +2,6 @@
 from django.db import models
 from datetime import date, datetime
 from django.utils import timezone
-from datetime import date, datetime
 
 class Stagiaire(models.Model):
     nom = models.CharField(max_length=100)
@@ -15,15 +14,15 @@ class Stagiaire(models.Model):
     matricule = models.CharField(max_length=50, unique=True, blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        # Import conditionnel pour éviter la circularité
         from .business_rules import BusinessRules
-        
-        # Appliquer les règles métier avant sauvegarde
-        if not self.pk:  # Nouveau stagiaire
+
+        # Appliquer les règles métier uniquement si c’est un nouvel objet
+        if not self.pk:  
             BusinessRules.appliquer_regles_avant_sauvegarde(self)
-        
+
+        # Génération automatique du matricule
         if not self.matricule:
-            super().save(*args, **kwargs)
+            super().save(*args, **kwargs)  # Sauvegarde initiale pour obtenir un ID
             today = date.today().strftime("%Y%m%d")
             self.matricule = f"STG-{today}-{self.id}"
             kwargs['force_insert'] = False
@@ -31,6 +30,7 @@ class Stagiaire(models.Model):
 
     def __str__(self):
         return f"{self.prenom} {self.nom} ({self.matricule})"
+
 
 class Encadrant(models.Model):
     nom = models.CharField(max_length=100)
@@ -44,6 +44,7 @@ class Encadrant(models.Model):
 
     def __str__(self):
         return f"{self.prenom} {self.nom}"
+
 
 class Stage(models.Model):
     theme = models.CharField(max_length=255)
@@ -63,33 +64,35 @@ class Stage(models.Model):
         max_length=20,
         choices=[('En cours', 'En cours'), ('Terminé', 'Terminé'), ('Validé', 'Validé')],
         default='En cours'
-    
     )
     stagiaire = models.ForeignKey('Stagiaire', on_delete=models.CASCADE)
     encadrant = models.ForeignKey('Encadrant', on_delete=models.SET_NULL, null=True)
-   
 
     def save(self, *args, **kwargs):
-        # Import conditionnel pour éviter la circularité
         from .business_rules import BusinessRules
-        
-        # Appliquer les règles métier avant sauvegarde
-        BusinessRules.appliquer_regles_avant_sauvegarde(self)
-        
+
+        # 🔑 Appliquer les règles métier uniquement si l’objet a déjà un PK
+        if self.pk:
+            BusinessRules.appliquer_regles_avant_sauvegarde(self)
+
         today = date.today()
+
+        # Convertir la date_fin si c’est une string
         if isinstance(self.date_fin, str):
             self.date_fin = datetime.strptime(self.date_fin, "%Y-%m-%d").date()
-        
-        # Statut calculé automatiquement (sauf si déjà validé)
+
+        # Statut calculé automatiquement sauf si déjà Validé
         if self.statut != "Validé":
             if today <= self.date_fin:
                 self.statut = "En cours"
             else:
                 self.statut = "Terminé"
+
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.theme} ({self.stagiaire})"
+
 
 class Rapport(models.Model):
     ETAT_CHOICES = [
@@ -105,11 +108,10 @@ class Rapport(models.Model):
     fichier = models.FileField(upload_to='rapports/')
 
     def save(self, *args, **kwargs):
-        # Import conditionnel pour éviter la circularité
         from .business_rules import BusinessRules
-        
-        # Appliquer les règles métier avant sauvegarde
-        BusinessRules.appliquer_regles_avant_sauvegarde(self)
+        # Appliquer règles seulement si l’objet existe déjà
+        if self.pk:
+            BusinessRules.appliquer_regles_avant_sauvegarde(self)
         super().save(*args, **kwargs)
 
     def __str__(self):
