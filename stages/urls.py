@@ -30,5 +30,12 @@ urlpatterns = [
     # Route pour le tableau de bord
     path('dashboard/api/', views.dashboard_api, name='dashboard_api'),
     path('stagiaires/api/search-by-matricule/', views.search_stagiaire_by_matricule, name='search_stagiaire_by_matricule'),
+
     path('stagiaires/api/<int:pk>/detail/', views.stagiaire_detail_api, name='stagiaire_detail_api'),
+
+ # --- Routes d'Authentification (pour le Frontend React) ---
+    path('auth/login/', views.login_api, name='login_api'),
+    path('auth/logout/', views.logout_api, name='logout_api'),
+    path('auth/current-user/', views.current_user_api, name='current_user_api'),
+
 ]

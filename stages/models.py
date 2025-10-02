@@ -2,6 +2,41 @@
 from django.db import models
 from datetime import date, datetime
 from django.utils import timezone
+from django.contrib.auth.models import AbstractUser # <-- NOUVEL IMPORT NÉCESSAIRE
+from django.core.exceptions import ValidationError 
+
+# ==============================================================================
+# 1. Modèle d'Utilisateur Personnalisé (CustomUser)
+# (Fixe l'erreur 'ImproperlyConfigured' et est requis par settings.py)
+# ==============================================================================
+
+class CustomUser(AbstractUser):
+    ROLE_CHOICES = (
+        ('admin', 'Administrateur'),
+        ('gestionnaire', 'Gestionnaire de Stages'),
+        ('consultant', 'Consultant'),
+        ('encadrant', 'Encadrant'),
+    )
+    
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='consultant')
+
+    # Méthodes pour les permissions (requises par le frontend et views.py)
+    def can_edit_stages(self):
+        return self.role in ['admin', 'gestionnaire']
+    
+    def can_validate_rapports(self):
+        return self.role in ['admin', 'gestionnaire']
+
+    def can_delete(self):
+        return self.role == 'admin'
+
+    def __str__(self):
+        return self.username
+
+
+# ==============================================================================
+# 2. Modèles de l'Application Stages
+# ==============================================================================
 
 class Stagiaire(models.Model):
     nom = models.CharField(max_length=100)
@@ -26,6 +61,7 @@ class Stagiaire(models.Model):
             today = date.today().strftime("%Y%m%d")
             self.matricule = f"STG-{today}-{self.id}"
             kwargs['force_insert'] = False
+            
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -65,13 +101,24 @@ class Stage(models.Model):
         choices=[('En cours', 'En cours'), ('Terminé', 'Terminé'), ('Validé', 'Validé')],
         default='En cours'
     )
-    stagiaire = models.ForeignKey('Stagiaire', on_delete=models.CASCADE)
-    encadrant = models.ForeignKey('Encadrant', on_delete=models.SET_NULL, null=True)
+    
+    # 🔑 CORRECTION IMPORTANTE : Ajout des related_name explicites pour éviter les conflits
+    stagiaire = models.ForeignKey(
+        'Stagiaire', 
+        on_delete=models.CASCADE,
+        related_name='stages_stagiaire' 
+    )
+    encadrant = models.ForeignKey(
+        'Encadrant', 
+        on_delete=models.SET_NULL, 
+        null=True,
+        related_name='stages_encadrant'
+    )
 
     def save(self, *args, **kwargs):
         from .business_rules import BusinessRules
 
-        # 🔑 Appliquer les règles métier uniquement si l’objet a déjà un PK
+        # Appliquer les règles métier uniquement si l’objet a déjà un PK
         if self.pk:
             BusinessRules.appliquer_regles_avant_sauvegarde(self)
 
