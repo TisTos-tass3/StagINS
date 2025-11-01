@@ -15,24 +15,23 @@ class CanEditStages(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return request.user.is_authenticated
-        # POST, PUT, PATCH, DELETE
+       
         return request.user.is_authenticated and request.user.role in ['admin', 'gestionnaire']
 
 class CanValidateRapports(permissions.BasePermission):
     """Permet la validation/archivage aux gestionnaires/admins."""
     def has_permission(self, request, view):
-        # Valide l'accès aux routes spécifiques de validation/archivage
+       
         if 'valider' in request.path or 'archiver' in request.path:
             return request.user.is_authenticated and request.user.role in ['admin', 'gestionnaire']
-        return True # Permet aux autres méthodes de passer (par ex. GET)
+        return True
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
-    Permission au niveau de l'objet, nécessitant une implémentation 
-    dans la vue pour vérifier la propriété.
+    Permission au niveau de l'objet
     """
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
-        # Par défaut, seul l'admin/gestionnaire peut modifier les objets du système
+       
         return request.user.is_authenticated and request.user.role in ['admin', 'gestionnaire']

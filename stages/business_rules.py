@@ -1,8 +1,8 @@
-# Fichier : business_rules.py
+
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import timedelta
-from django.apps import apps  # NOUVEL IMPORT
+from django.apps import apps
 import re
 
 class BusinessRules:
@@ -10,12 +10,12 @@ class BusinessRules:
     Classe contenant toutes les règles métier du système de gestion des stages
     """
     
-    # Constantes
+   
     NIVEAUX_ETUDE_AUTORISES = ['Bac +2', 'Bac +3', 'Bac +5', 'Bac +8']
     FORMATS_FICHIER_AUTORISES = ['.pdf', '.doc', '.docx', '.odt']
-    TAILLE_MAX_FICHIER = 15 * 1024 * 1024  # 15 Mo
+    TAILLE_MAX_FICHIER = 15 * 1024 * 1024  
 
-    # Méthode utilitaire pour obtenir les modèles
+    
     @staticmethod
     def get_model(model_name):
         return apps.get_model('stages', model_name)
@@ -32,16 +32,16 @@ class BusinessRules:
         Stagiaire = BusinessRules.get_model('Stagiaire')
         errors = {}
         
-        # Vérification du téléphone (uniquement chiffres)
+    
         if data.get('telephone') and not data['telephone'].isdigit():
             errors['telephone'] = 'Le téléphone ne doit contenir que des chiffres.'
         
-        # Vérification du niveau d'étude
+       
         niveau_etude = data.get('niveau_etude')
         if niveau_etude and niveau_etude not in BusinessRules.NIVEAUX_ETUDE_AUTORISES:
             errors['niveau_etude'] = f"Niveau d'étude non valide. Choisissez parmi: {', '.join(BusinessRules.NIVEAUX_ETUDE_AUTORISES)}"
         
-        # Vérification email unique
+       
         email = data.get('email')
         if email and Stagiaire.objects.filter(email=email).exists():
             errors['email'] = 'Un stagiaire avec cet email existe déjà.'
@@ -56,15 +56,15 @@ class BusinessRules:
         """
         errors = {}
         
-        # Vérification que le matricule n'est pas modifié
+       
         if 'matricule' in data and data['matricule'] != stagiaire.matricule:
             errors['matricule'] = 'Le matricule ne peut pas être modifié.'
         
-        # Vérification du téléphone (uniquement chiffres)
+        
         if 'telephone' in data and data['telephone'] and not data['telephone'].isdigit():
             errors['telephone'] = 'Le téléphone ne doit contenir que des chiffres.'
         
-        # Vérification du niveau d'étude
+       
         if 'niveau_etude' in data and data['niveau_etude'] not in BusinessRules.NIVEAUX_ETUDE_AUTORISES:
             errors['niveau_etude'] = f"Niveau d'étude non valide. Choisissez parmi: {', '.join(BusinessRules.NIVEAUX_ETUDE_AUTORISES)}"
         
@@ -78,10 +78,10 @@ class BusinessRules:
         """
         Stage = BusinessRules.get_model('Stage')
         
-        # Vérification s'il a des stages en cours
+        
         stages_en_cours = Stage.objects.filter(stagiaire=stagiaire, statut='En cours')
         if stages_en_cours.exists():
-            return False, "Impossible de supprimer un stagiaire ayant des stages en cours."
+            return False, "Impossible de supprimer un stagiaire ayant des stages En cours."
         
         return True, None
     
@@ -97,7 +97,7 @@ class BusinessRules:
         Stage = BusinessRules.get_model('Stage')
         errors = {}
         
-        # Vérification des dates
+       
         date_debut = data.get('date_debut')
         date_fin = data.get('date_fin')
         
@@ -105,7 +105,7 @@ class BusinessRules:
             if date_fin <= date_debut:
                 errors['date_fin'] = 'La date de fin doit être après la date de début.'
             
-            # Vérification des chevauchements pour le même stagiaire
+           
             stagiaire_id = data.get('stagiaire')
             if stagiaire_id:
                 chevauchements = Stage.objects.filter(
@@ -128,18 +128,18 @@ class BusinessRules:
         Stage = BusinessRules.get_model('Stage')
         errors = {}
         
-        # Vérification si le stage peut être modifié
+       
         if not BusinessRules.peut_modifier_stage(stage):
             errors['stage'] = 'Impossible de modifier un stage avec un rapport validé ou archivé.'
         
-        # Vérification des dates
+       
         date_debut = data.get('date_debut', stage.date_debut)
         date_fin = data.get('date_fin', stage.date_fin)
         
         if date_fin <= date_debut:
             errors['date_fin'] = 'La date de fin doit être après la date de début.'
         
-        # Vérification des chevauchements (exclure le stage actuel)
+        
         stagiaire_id = data.get('stagiaire', stage.stagiaire_id)
         if stagiaire_id and date_debut and date_fin:
             chevauchements = Stage.objects.filter(
@@ -206,17 +206,25 @@ class BusinessRules:
         if stage_id:
             stage = Stage.objects.get(pk=stage_id)
             
-            # Vérification thème unique
+            
+            rapports_existants = Rapport.objects.filter(stage=stage)
+            if rapports_existants.exists():
+                errors['stage'] = 'Ce stage a déjà un rapport associé.'
+            
+           
             rapports_meme_theme = Rapport.objects.filter(stage__theme=stage.theme)
             if rapports_meme_theme.exists():
-                errors['stage'] = 'Un rapport avec ce thème existe déjà.'
+               
+                existing_rapport = rapports_meme_theme.first()
+                if existing_rapport.stage_id != stage_id:
+                    errors['stage'] = f'Un rapport avec le thème "{stage.theme}" existe déjà pour un autre stage.'
             
-            # Vérification un seul rapport en attente par stage
+            
             rapports_attente = Rapport.objects.filter(stage=stage, etat='En attente')
             if rapports_attente.exists():
                 errors['stage'] = 'Ce stage a déjà un rapport en attente.'
         
-        # Validation du fichier
+
         if fichier:
             file_errors = BusinessRules.valider_fichier_rapport(fichier)
             errors.update(file_errors)
@@ -231,11 +239,11 @@ class BusinessRules:
         """
         errors = {}
         
-        # Vérification si le rapport peut être modifié
+        
         if not BusinessRules.peut_modifier_rapport(rapport):
             errors['rapport'] = 'Impossible de modifier un rapport validé ou archivé.'
         
-        # Validation du fichier si fourni
+        
         if fichier:
             file_errors = BusinessRules.valider_fichier_rapport(fichier)
             errors.update(file_errors)
@@ -250,14 +258,14 @@ class BusinessRules:
         """
         errors = {}
         
-        # Vérification du format
+        
         nom_fichier = fichier.name.lower()
         format_valide = any(nom_fichier.endswith(ext) for ext in BusinessRules.FORMATS_FICHIER_AUTORISES)
         
         if not format_valide:
             errors['fichier'] = f"Format de fichier non autorisé. Formats acceptés: {', '.join(BusinessRules.FORMATS_FICHIER_AUTORISES)}"
         
-        # Vérification de la taille
+        
         if fichier.size > BusinessRules.TAILLE_MAX_FICHIER:
             errors['fichier'] = f"Taille du fichier supérieure à {BusinessRules.TAILLE_MAX_FICHIER // (1024*1024)} Mo."
         
@@ -296,6 +304,68 @@ class BusinessRules:
         return True, None
     
     # =========================================================================
+    # RÈGLES POUR LES ENCADRANTS
+    # =========================================================================
+    
+    @staticmethod
+    def peut_supprimer_encadrant(encadrant):
+        """
+        Vérifie si un encadrant peut être supprimé selon les règles métier
+        """
+        Stage = BusinessRules.get_model('Stage')
+        
+      
+        stages_associes = Stage.objects.filter(encadrant=encadrant)
+        if stages_associes.exists():
+            stages_count = stages_associes.count()
+            return False, f"Impossible de supprimer cet encadrant. Il est associé à {stages_count} stage(s). Veuillez d'abord réaffecter ces stages à un autre encadrant."
+        
+        return True, None
+    
+    # =========================================================================
+    # RÈGLES AUTOMATIQUES AVANT SAUVEGARDE
+    # =========================================================================
+    
+    @staticmethod
+    def appliquer_regles_avant_sauvegarde(instance):
+        """
+        Applique les règles métier automatiques avant sauvegarde
+        """
+        
+        if hasattr(instance, '_meta') and instance._meta.model_name == 'stage':
+           
+            rapport_valide = instance.rapports.filter(etat='Validé').exists()
+            instance.statut = BusinessRules.calculer_statut_stage(
+                instance.date_debut, 
+                instance.date_fin, 
+                rapport_valide
+            )
+        
+       
+        elif hasattr(instance, '_meta') and instance._meta.model_name == 'rapport':
+            
+            if not instance.pk:
+                instance.date_depot = timezone.now()
+        
+       
+        elif hasattr(instance, '_meta') and instance._meta.model_name == 'stagiaire':
+            
+            if not instance.matricule:
+                
+                dernier_stagiaire = instance.__class__.objects.order_by('-id').first()
+                if dernier_stagiaire and dernier_stagiaire.matricule:
+                    try:
+                        dernier_numero = int(dernier_stagiaire.matricule.split('-')[-1])
+                        nouveau_numero = dernier_numero + 1
+                    except (ValueError, IndexError):
+                        nouveau_numero = 1
+                else:
+                    nouveau_numero = 1
+                
+                annee_en_course = timezone.now().year
+                instance.matricule = f"STG-{annee_en_course}-{nouveau_numero:04d}"
+    
+    # =========================================================================
     # ALERTES ET CONTRÔLES TEMPORELS
     # =========================================================================
     
@@ -311,13 +381,13 @@ class BusinessRules:
         sept_jours = today + timedelta(days=7)
         trente_jours = today - timedelta(days=30)
         
-        # Stages se terminant dans 7 jours
+       
         stages_bientot_termines = Stage.objects.filter(
             statut='En cours',
             date_fin__range=[today, sept_jours]
         )
         
-        # Stages en retard de rapport (+30 jours après fin)
+        
         stages_retard_rapport = Stage.objects.filter(
             statut='Terminé',
             date_fin__lte=trente_jours
@@ -345,7 +415,7 @@ class BusinessRules:
         
         stages_attention = []
         
-        # Ajouter les stages bientôt terminés
+        
         for stage in alertes['bientot_termines']['stages']:
             stages_attention.append({
                 'stage': stage,
@@ -354,7 +424,7 @@ class BusinessRules:
                 'severite': 'warning'
             })
         
-        # Ajouter les stages en retard
+      
         for stage in alertes['en_retard_rapport']['stages']:
             jours_retard = (timezone.now().date() - stage.date_fin).days
             stages_attention.append({
@@ -369,25 +439,6 @@ class BusinessRules:
     # =========================================================================
     # UTILITAIRES
     # =========================================================================
-    
-    @staticmethod
-    def appliquer_regles_avant_sauvegarde(instance):
-        """
-        Applique les règles métier automatiques avant sauvegarde
-        """
-        if hasattr(instance, '_meta') and instance._meta.model_name == 'stage':
-            # Recalcul du statut du stage
-            rapport_valide = instance.rapports.filter(etat='Validé').exists()
-            instance.statut = BusinessRules.calculer_statut_stage(
-                instance.date_debut, 
-                instance.date_fin, 
-                rapport_valide
-            )
-        
-        elif hasattr(instance, '_meta') and instance._meta.model_name == 'rapport':
-            # Date de dépôt automatique pour nouveau rapport
-            if not instance.pk:
-                instance.date_depot = timezone.now()
     
     @staticmethod
     def get_resume_regles_metier():
@@ -407,7 +458,7 @@ class BusinessRules:
                     'Matricule non modifiable'
                 ],
                 'suppression': [
-                    'Impossible si stages en cours',
+                    'Impossible si stages En cours',
                     'Suppression en cascade avec les stages'
                 ]
             },

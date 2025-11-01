@@ -1,13 +1,12 @@
-# Fichier : models.py
+
 from django.db import models
 from datetime import date, datetime
 from django.utils import timezone
-from django.contrib.auth.models import AbstractUser # <-- NOUVEL IMPORT NÉCESSAIRE
+from django.contrib.auth.models import AbstractUser 
 from django.core.exceptions import ValidationError 
 
 # ==============================================================================
-# 1. Modèle d'Utilisateur Personnalisé (CustomUser)
-# (Fixe l'erreur 'ImproperlyConfigured' et est requis par settings.py)
+# Modèle d'Utilisateur Personnalisé 
 # ==============================================================================
 
 class CustomUser(AbstractUser):
@@ -20,7 +19,7 @@ class CustomUser(AbstractUser):
     
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='consultant')
 
-    # Méthodes pour les permissions (requises par le frontend et views.py)
+    
     def can_edit_stages(self):
         return self.role in ['admin', 'gestionnaire']
     
@@ -35,7 +34,7 @@ class CustomUser(AbstractUser):
 
 
 # ==============================================================================
-# 2. Modèles de l'Application Stages
+# Modèles de l'Application Stages
 # ==============================================================================
 
 class Stagiaire(models.Model):
@@ -51,21 +50,20 @@ class Stagiaire(models.Model):
     def save(self, *args, **kwargs):
         from .business_rules import BusinessRules
 
-        # Appliquer les règles métier uniquement si c’est un nouvel objet
+       
         if not self.pk:  
             BusinessRules.appliquer_regles_avant_sauvegarde(self)
 
-        # Génération automatique du matricule
         if not self.matricule:
-            super().save(*args, **kwargs)  # Sauvegarde initiale pour obtenir un ID
-            today = date.today().strftime("%Y%m%d")
-            self.matricule = f"STG-{today}-{self.id}"
+            super().save(*args, **kwargs) 
+            self.matricule = f"STG-{date.today}-{self.id}"
             kwargs['force_insert'] = False
             
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.prenom} {self.nom} ({self.matricule})"
+
 
 
 class Encadrant(models.Model):
@@ -75,6 +73,7 @@ class Encadrant(models.Model):
         max_length=20,
         choices=[('Interne', 'Interne'), ('Externe', 'Externe')]
     )
+    nom_institution = models.CharField(max_length=150, blank=True, null=True, verbose_name="Nom de l'institution")
     email = models.EmailField(unique=True)
     telephone = models.CharField(max_length=20, blank=True, null=True)
 
@@ -82,14 +81,24 @@ class Encadrant(models.Model):
         return f"{self.prenom} {self.nom}"
 
 
+
 class Stage(models.Model):
     theme = models.CharField(max_length=255)
-    lieu_affectation = models.CharField(
-        max_length=150, 
-        blank=True, 
-        null=True, 
-        verbose_name="Lieu d'Affectation"
-    )
+
+    
+    direction = models.CharField(max_length=100, verbose_name="Direction", blank=True, null=True)
+   
+    division = models.CharField(max_length=100, verbose_name="Division", blank=True, null=True)
+   
+    
+   
+    unite = models.CharField(max_length=100, verbose_name="Unité d'affectation", blank=True, null=True)
+   
+    service = models.CharField(max_length=100, blank=True, null=True, verbose_name="Service d'affectation")
+   
+    
+    
+    
     type_stage = models.CharField(
         max_length=20,
         choices=[('Academique', 'Académique'), ('Professionnel', 'Professionnel')]
@@ -101,8 +110,20 @@ class Stage(models.Model):
         choices=[('En cours', 'En cours'), ('Terminé', 'Terminé'), ('Validé', 'Validé')],
         default='En cours'
     )
+    decision = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True, 
+        verbose_name="Numéro de décision"
+    )
+    lettre_acceptation = models.FileField(
+        upload_to='lettres_acceptation/', 
+        blank=True, 
+        null=True,
+        verbose_name="Lettre d'acceptation scannée"
+    )
     
-    # 🔑 CORRECTION IMPORTANTE : Ajout des related_name explicites pour éviter les conflits
+    
     stagiaire = models.ForeignKey(
         'Stagiaire', 
         on_delete=models.CASCADE,
@@ -112,33 +133,85 @@ class Stage(models.Model):
         'Encadrant', 
         on_delete=models.SET_NULL, 
         null=True,
+        blank=True,
         related_name='stages_encadrant'
     )
+
+    def __str__(self):
+        return f"{self.theme} ({self.stagiaire})"
 
     def save(self, *args, **kwargs):
         from .business_rules import BusinessRules
 
-        # Appliquer les règles métier uniquement si l’objet a déjà un PK
-        if self.pk:
-            BusinessRules.appliquer_regles_avant_sauvegarde(self)
+       
+        BusinessRules.appliquer_regles_avant_sauvegarde(self)
 
-        today = date.today()
-
-        # Convertir la date_fin si c’est une string
-        if isinstance(self.date_fin, str):
-            self.date_fin = datetime.strptime(self.date_fin, "%Y-%m-%d").date()
-
-        # Statut calculé automatiquement sauf si déjà Validé
-        if self.statut != "Validé":
-            if today <= self.date_fin:
-                self.statut = "En cours"
-            else:
-                self.statut = "Terminé"
+       
+        self.mettre_a_jour_statut_automatique()
 
         super().save(*args, **kwargs)
+    
+    def mettre_a_jour_statut_automatique(self):
+        """Met à jour automatiquement le statut du stage en fonction des dates"""
+        today = date.today()
+        
+       
+        if self.statut == "Validé":
+            return
+            
+       
+        if isinstance(self.date_fin, str):
+            try:
+                self.date_fin = datetime.strptime(self.date_fin, "%Y-%m-%d").date()
+            except ValueError:
+               
+                pass
+        
 
-    def __str__(self):
-        return f"{self.theme} ({self.stagiaire})"
+        if self.date_debut and self.date_fin:
+            if today < self.date_debut:
+                
+                self.statut = "En cours"  
+            elif self.date_debut <= today <= self.date_fin:
+                
+                self.statut = "En cours"
+            elif today > self.date_fin:
+                
+                self.statut = "Terminé"
+
+    @classmethod
+    def mettre_a_jour_tous_les_statuts(cls):
+        """Méthode pour mettre à jour tous les statuts des stages (à appeler quotidiennement)"""
+        today = date.today()
+        stages_a_mettre_a_jour = []
+        
+        
+        stages = cls.objects.exclude(statut='Validé')
+        
+        for stage in stages:
+            ancien_statut = stage.statut
+            
+           
+            if stage.date_debut and stage.date_fin:
+                if today < stage.date_debut:
+                    nouveau_statut = "En cours"
+                elif stage.date_debut <= today <= stage.date_fin:
+                    nouveau_statut = "En cours"
+                elif today > stage.date_fin:
+                    nouveau_statut = "Terminé"
+                else:
+                    nouveau_statut = ancien_statut
+                
+               
+                if nouveau_statut != ancien_statut:
+                    stage.statut = nouveau_statut
+                    stages_a_mettre_a_jour.append(stage)
+        
+         
+        if stages_a_mettre_a_jour:
+            cls.objects.bulk_update(stages_a_mettre_a_jour, ['statut'])
+            print(f"{len(stages_a_mettre_a_jour)} stages mis à jour automatiquement")
+    
 
 
 class Rapport(models.Model):
@@ -156,7 +229,7 @@ class Rapport(models.Model):
 
     def save(self, *args, **kwargs):
         from .business_rules import BusinessRules
-        # Appliquer règles seulement si l’objet existe déjà
+      
         if self.pk:
             BusinessRules.appliquer_regles_avant_sauvegarde(self)
         super().save(*args, **kwargs)

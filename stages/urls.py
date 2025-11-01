@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Routes existantes pour stagiaires
+    # Routes pour stagiaires
     path('', views.home, name='home'),
     path('add_stagiaire/', views.add_stagiaire, name='add_stagiaire'),
     path('stagiaires/api/', views.stagiaires_api, name='stagiaires_api'),
@@ -11,7 +11,7 @@ urlpatterns = [
 
     # Routes pour encadrants
     path('encadrants/api/', views.encadrants_api, name='encadrants_api'),
-    path('encadrants/api/create/', views.add_encadrant, name='create_encadrant'),
+    path('encadrants/api/create/', views.encadrant_create, name='create_encadrant'),
     path('encadrants/api/<int:pk>/', views.encadrant_detail, name='encadrant_detail'),
 
     # Routes pour stages
@@ -26,6 +26,7 @@ urlpatterns = [
     path('rapports/api/<int:pk>/valider/', views.rapport_valider, name='rapport_valider'),
     path('rapports/api/<int:pk>/archiver/', views.rapport_archiver, name='rapport_archiver'),
     path('rapports/api/<int:pk>/download/', views.rapport_download, name='rapport_download'),
+    
 
     # Route pour le tableau de bord
     path('dashboard/api/', views.dashboard_api, name='dashboard_api'),
@@ -33,9 +34,11 @@ urlpatterns = [
 
     path('stagiaires/api/<int:pk>/detail/', views.stagiaire_detail_api, name='stagiaire_detail_api'),
 
- # --- Routes d'Authentification (pour le Frontend React) ---
+   # Routes d'Authentification 
     path('auth/login/', views.login_api, name='login_api'),
     path('auth/logout/', views.logout_api, name='logout_api'),
     path('auth/current-user/', views.current_user_api, name='current_user_api'),
 
+    # Route pour générer une attestation de stage
+    path('stages/api/<int:pk>/generer-attestation/', views.generer_attestation, name='generer_attestation'),
 ]

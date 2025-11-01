@@ -15,14 +15,14 @@ SECRET_KEY = 'django-insecure-4kioi6zti==$-c@_@p6cuk+slrz0fm@4(=-13e!3pbk44^#$a7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*'] # À restreindre en production
+ALLOWED_HOSTS = ['*'] 
 
 
 # Application definition
 
 INSTALLED_APPS = [
     'corsheaders',
-    'stages', # Votre application principale (Assumer que vos models/views/forms sont ici)
+    'stages', 
     'rest_framework',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -34,7 +34,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    # ⚠️ Ajout du middleware de sécurité AVANT l'authentification
     'stages.security_middleware.SecurityMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -77,9 +76,8 @@ DATABASES = {
     }
 }
 
-# User Model Customization (Nécessaire pour le champ 'role')
-# ⚠️ Assurez-vous d'avoir un modèle CustomUser avec le champ 'role' dans stages/models.py
-AUTH_USER_MODEL = 'stages.CustomUser' 
+
+AUTH_USER_MODEL = 'stages.CustomUser'
 
 
 # Password validation
@@ -93,7 +91,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'fr-fr'
-TIME_ZONE = 'Africa/Algiers' # Ajustez si nécessaire
+TIME_ZONE = 'Africa/Algiers' 
 USE_I18N = True
 USE_TZ = True
 
@@ -106,31 +104,29 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# --- Configuration API / Frontend ---
-# CORS (React Frontend)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    # Ajouter votre domaine de production
+ 
 ]
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF (Permet au frontend React de faire des POST/PUT/DELETE)
+# CSRF 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
-# Media files (upload de rapports)
+# Media files 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# REST Framework - Authentification
+# REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication', # SessionAuth pour interagir avec le frontend React via CORS/CSRF
+        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated', # Règle par défaut
+        'rest_framework.permissions.IsAuthenticated', 
     ],
 }
