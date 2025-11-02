@@ -1,5 +1,7 @@
 Explication du fonctionnement du code - Gestion des statuts de stage
-Fichier: views.py
+
+**Fichier: views.py**
+
 Sérialisation des stages
 
 ```python
@@ -51,8 +53,11 @@ Rôle dans la logique
 - Validation automatique des statuts basée sur les dates
 - Contrôle d'accès pour certaines fonctionnalités
 - Statistiques du dashboard
-Fichier: models.py
+  
+**Fichier: models.py**
+
 Définition du champ statut
+
 ```python
 class Stage(models.Model):
     statut = models.CharField(
@@ -86,7 +91,10 @@ Rôle dans la logique
 - Mise à jour automatique basée sur la date
 - Préservation du statut 'Validé'
 - Exclusion des stages validés des mises à jour automatiques
-Fichier: update_stage_status.py
+  
+**Fichier: update_stage_status.py**
+
+
 Rôle complet
 ```python
 class Command(BaseCommand):
@@ -99,7 +107,10 @@ Rôle dans la logique
 - Commande Django pour exécuter la mise à jour des statuts
 - Appel quotidien possible via cron job
 - Automatisation du processus de mise à jour
-Fichier: Stages.jsx (React)
+  
+**Fichier: Stages.jsx (React)**
+
+
 Filtrage par statut
 ```javascript
 const [advancedFilters, setAdvancedFilters] = useState({});
@@ -120,7 +131,11 @@ Rôle dans la logique
 - Interface utilisateur pour filtrer par statut
 - Contrôle d'affichage des fonctionnalités
 - UX adaptée au statut
-Fichier: StagesTable.jsx (React)
+
+  
+**Fichier: StagesTable.jsx (React)**
+
+
 Configuration des couleurs de statut
 ```javascript
 const statusConfig = {
